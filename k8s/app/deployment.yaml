@@ -15,11 +15,11 @@ spec:
         app: telegram-2fa-bot-deployment
     spec:
       imagePullSecrets:
-        - name: registry-feld
+      - name: registry-feld
       containers:
-        - name: telegram-2fa-bot
-          image: registry.digitalocean.com/feld/telegram-bot:latest
-          imagePullPolicy: Always
-          envFrom:
-            - secretRef:
-                name: telegram-bot-env
+      - name: telegram-2fa-bot
+        image: registry.digitalocean.com/feld/telegram-bot:latest
+        imagePullPolicy: Always
+        envFrom:
+        - secretRef:
+            name: telegram-bot-env
