@@ -1,0 +1,100 @@
+version: 2.1
+
+orbs:
+  digitalocean-cli: digitalocean/cli@0.1.1
+  kubernetes: circleci/kubernetes@1.3.1
+
+executors:
+  docker-executor:
+    docker:
+      - image: cimg/base:stable
+
+commands:
+  login-docker:
+    description: "Authenticate with DigitalOcean Container Registry"
+    steps:
+      - run:
+          name: Login to Docker Registry
+          command: echo $DIGITALOCEAN_ACCESS_TOKEN | docker login -u $DOCKER_USERNAME --password-stdin registry.digitalocean.com
+
+  build-and-push-image:
+    parameters:
+      app_name:
+        type: string
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - login-docker
+      - run:
+          name: Build Docker Images
+          command: |
+            docker build -f Dockerfile -t registry.digitalocean.com/$DOCKER_NAMESPACE/<< parameters.app_name >>:latest -t registry.digitalocean.com/$DOCKER_NAMESPACE/<< parameters.app_name >>:${CIRCLE_SHA1::7} .
+      - run:
+          name: Push Docker Images to Registry
+          command: |
+            docker push registry.digitalocean.com/$DOCKER_NAMESPACE/<< parameters.app_name >>:latest
+            docker push registry.digitalocean.com/$DOCKER_NAMESPACE/<< parameters.app_name >>:${CIRCLE_SHA1::7}
+
+  update-kube-deployment:
+    parameters:
+      deployment_name:
+        type: string
+      container_name:
+        type: string
+      image_name:
+        type: string
+    steps:
+      - run:
+          name: Conditionally Update Kubernetes Deployment << parameters.deployment_name >>
+          command: |
+            if kubectl get deployment/<< parameters.deployment_name >> > /dev/null 2>&1; then
+              echo "Updating deployment << parameters.deployment_name >>..."
+              kubectl set image deployment/<< parameters.deployment_name >> << parameters.container_name >>=registry.digitalocean.com/$DOCKER_NAMESPACE/<< parameters.image_name >>:${CIRCLE_SHA1::7}
+            else
+              echo "Deployment << parameters.deployment_name >> not found. Skipping update."
+            fi
+
+jobs:
+  build-and-push:
+    executor: docker-executor
+    steps:
+      - build-and-push-image:
+          app_name: "telegram-bot"
+  deploy:
+    executor: docker-executor
+    steps:
+      - checkout
+      - digitalocean-cli/install
+      - kubernetes/install
+      - run:
+          name: Authenticate with DigitalOcean
+          command: doctl auth init --access-token $DIGITALOCEAN_ACCESS_TOKEN
+      - run:
+          name: Update kubeconfig
+          command: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 feld-cluster
+      - update-kube-deployment:
+          deployment_name: "telegram-2fa-bot-deployment"
+          container_name: "telegram-2fa-bot"
+          image_name: "telegram-bot"
+      - run:
+          name: Apply Kubernetes Resources
+          command: |
+            kubectl apply -f k8s/app/deployment.yaml
+
+workflows:
+  version: 2
+  build-deploy:
+    jobs:
+      - build-and-push-bot:
+          filters:
+            branches:
+              only:
+                - main
+      - deploy-bot:
+          requires:
+            - build-and-push-bot
+          filters:
+            branches:
+              only:
+                - main

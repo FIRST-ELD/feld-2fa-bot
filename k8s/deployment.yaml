@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegram-2fa-bot-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telegram-2fa-bot-deployment
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: telegram-2fa-bot-deployment
+    spec:
+      imagePullSecrets:
+        - name: registry-feld
+      containers:
+        - name: telegram-2fa-bot
+          image: registry.digitalocean.com/feld/telegram-bot:latest
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: telegram-bot-env
