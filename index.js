@@ -145,4 +145,4 @@ bot.command("start", (ctx) =>
 
 bot.catch((err) => console.error("Bot error:", err));
 
-bot.start().then(() => console.log("Bot is running..."));
+bot.start().then(() => console.log("Bot is running...."));
