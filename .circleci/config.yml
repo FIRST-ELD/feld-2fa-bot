@@ -91,7 +91,7 @@ workflows:
           branches:
             only:
             - main
-    - deploy-bot:
+    - deploy:
         requires:
         - build-and-push
         filters:
